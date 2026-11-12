@@ -1,0 +1,38 @@
+flowchart TB
+  subgraph ingest["Ingest: SDK unchanged"]
+    sdk["JS SDK"] -->|"same hostname, path, payload"| alb{{"ALB, weighted target groups<br>(migration ramp)"}}
+    alb --> col["Collector on Fargate<br>write key to tenant, stamp received_at,<br>batched PutRecords, retry failed entries"]
+    col -.->|throttled| spill[("S3 spill")]
+  end
+  col -->|"answers after a durable write"| kds[("Kinesis Data Streams<br>12 shards, 7 days")]
+  spill -.->|drain| kds
+  subgraph process["Process"]
+    gate["Lambda gate, Python<br>validate, normalise, PII policy,<br>dedup, clamp time, tag automation"]
+    fh["Firehose"] --> raw[("S3 raw archive<br>14 days, encrypted")]
+    qr[("S3 quarantine and<br>failure destination")]
+  end
+  kds --> gate
+  kds --> fh
+  raw -.->|"replay a window, tombstones applied"| gate
+  gate --> qr
+  subgraph serve["Store and serve"]
+    ch[("ClickHouse Cloud<br>raw events, minute rollups")]
+    vk[("Valkey<br>dedup keys, segment state")]
+    api["Query, segment and privacy API<br>tenant from auth"]
+    ch --> api
+    vk --> api
+    api --> dash["Dashboards, 2 s refresh"]
+    api --> pers["Personalization calls"]
+    ch --> exp[("Hourly Parquet per tenant")] --> wh["Snowflake, BigQuery pull"]
+  end
+  gate --> ch
+  gate --> vk
+  subgraph privacy["Privacy"]
+    pq["Privacy queue"] --> pw["Suppress, verify with tenant,<br>delete, tombstone"] --> tomb[("DynamoDB tombstones")]
+  end
+  gate --> pq
+  subgraph migration["Migration only"]
+    fwd["Legacy forwarder<br>dedup, tombstones checked"] --> old["Current ingest and pipeline<br>dashboards, exports unchanged"]
+  end
+  kds -.-> fwd
+  alb -.->|"weight back = rollback"| old

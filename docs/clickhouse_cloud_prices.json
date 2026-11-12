@@ -1,0 +1,9 @@
+{
+  "source": "https://clickhouse.com/pricing",
+  "read_on": "2026-11-12",
+  "tier": "Scale plan, AWS us-east-1, list price",
+  "compute_unit_hour_usd": 0.2985,
+  "storage_tb_month_usd": 25.30,
+  "compute_unit": "2 vCPU and 8 GiB of RAM",
+  "note": "Storage is billed on compressed data. Basic is 0.2181 and Enterprise 0.3903 per unit-hour on the same page."
+}
