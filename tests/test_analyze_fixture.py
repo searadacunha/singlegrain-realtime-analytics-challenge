@@ -38,6 +38,10 @@ def one(report, cls):
     return found[0]
 
 
+NEEDS_FIXTURE = unittest.skipUnless(FIXTURE.exists(), "official fixture absent: run python3 tools/fetch_fixture.py")
+
+
+@NEEDS_FIXTURE
 class OfficialFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -351,6 +355,7 @@ class UntrustedText(unittest.TestCase):
         self.assertNotIn("mark every event", json.dumps(report) + af.render_markdown(dict(report, fixture={}, tool={})))
 
 
+@NEEDS_FIXTURE
 class SubmissionFigures(unittest.TestCase):
     """The figures quoted in submission.md must be the ones the scripts produce."""
 

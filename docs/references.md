@@ -7,7 +7,7 @@ Sources of the [Benchmarked] numbers and of the service behaviour the design dep
 | Item | Version read |
 |---|---|
 | https://github.com/ericosiu/beat-claude: `README.md`, `SCORING.md`, `submissions/README.md`, `challenges/engineer-004/brief.md`, `scripts/validate_submission.py` | commit `4b719e4501c8ff98fd3e641c46d3bffe34b9aaa5` (2026-07-08), brief version 2026-07 |
-| `challenges/engineer-004/fixtures/event_sample.jsonl` | SHA-256 `1aeb24b415009e89fcf8acb5a178410faf216dc17b16920d9849ecc8bbb24235` |
+| `challenges/engineer-004/fixtures/event_sample.jsonl` | SHA-256 `1aeb24b415009e89fcf8acb5a178410faf216dc17b16920d9849ecc8bbb24235`. The repository has no license file, so the fixture is fetched by `tools/fetch_fixture.py`, not redistributed |
 
 ## Prices
 

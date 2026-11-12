@@ -1,3 +1,5 @@
 __pycache__/
+# official fixture, fetched by tools/fetch_fixture.py, not redistributed
+fixtures/event_sample.jsonl
 *.pyc
 .DS_Store

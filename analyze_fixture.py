@@ -827,6 +827,10 @@ def main(argv=None):
     parser.add_argument("--expect-sha256", help="exit with code 3 if the fixture checksum differs")
     parser.add_argument("--bench", type=int, metavar="N", help="time the gate on N synthetic events and exit")
     args = parser.parse_args(argv)
+    if not args.fixture.exists():
+        print("fixture not found: %s. Run python3 tools/fetch_fixture.py first: the official file is not redistributed here."
+              % args.fixture, file=sys.stderr)
+        return 2
     raw = args.fixture.read_bytes()
     if args.bench:
         return bench(raw, args.bench)

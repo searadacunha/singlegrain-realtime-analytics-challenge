@@ -9,12 +9,13 @@ An answer to Single Grain's [Engineer 004 challenge](https://github.com/ericosiu
 Python 3.10 or later, standard library only. No AWS account, no API key, nothing to install.
 
 ```sh
+python3 tools/fetch_fixture.py
 python3 analyze_fixture.py --expect-sha256 1aeb24b415009e89fcf8acb5a178410faf216dc17b16920d9849ecc8bbb24235
 python3 -m unittest discover -s tests -v
 python3 cost_model.py --print
 ```
 
-`analyze_fixture.py` reads `fixtures/event_sample.jsonl`, writes [`artifacts/anomaly_report.json`](artifacts/anomaly_report.json) and [`artifacts/anomaly_report.md`](artifacts/anomaly_report.md), and exits with code 3 if the fixture is not the one the answer was written against. On a rotated fixture: `python3 analyze_fixture.py --fixture path/to/event_sample.jsonl --out-dir /tmp/out`.
+The first command downloads the official fixture at a pinned commit and checks its SHA-256: the challenge repository has no license file, so the fixture is not redistributed here. `analyze_fixture.py` reads `fixtures/event_sample.jsonl`, writes [`artifacts/anomaly_report.json`](artifacts/anomaly_report.json) and [`artifacts/anomaly_report.md`](artifacts/anomaly_report.md), and exits with code 3 if the fixture is not the one the answer was written against. On a rotated fixture: `python3 analyze_fixture.py --fixture path/to/event_sample.jsonl --out-dir /tmp/out`.
 
 ## What it finds in the official fixture
 
@@ -49,7 +50,7 @@ Each anomaly carries its `event_id`, class, reason, certainty, confidence, propo
 | [`docs/design_notes.md`](docs/design_notes.md) | Mechanisms behind the answer: Lambda settings, deduplication, freshness budget, ClickHouse layout, deletion, migration edge, exports |
 | [`docs/migration_plan.md`](docs/migration_plan.md) | Phased cutover, acceptance criteria, rollback triggers, MVP scope, SLOs |
 | [`docs/references.md`](docs/references.md) | Sources of every benchmarked number |
-| [`fixtures/`](fixtures/) | The official fixture, unchanged |
+| [`tools/fetch_fixture.py`](tools/fetch_fixture.py), [`fixtures/`](fixtures/) | Fetches the official fixture at a pinned commit and checks its SHA-256 (not redistributed) |
 
 ## What is measured and what is not
 
@@ -57,7 +58,7 @@ Measured here: the fixture analysis, the tests, the speed of the analysis on a l
 
 ## Continuous integration
 
-On every push, [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the tests on Python 3.10 and 3.13, regenerates the reports and the cost model and fails if they differ from the committed files, then runs the challenge's own pre-screen (`scripts/validate_submission.py --strict`, downloaded at a pinned commit and checksum) on `submission.md`.
+On every push, [`.github/workflows/ci.yml`](.github/workflows/ci.yml) fetches the fixture, runs the tests on Python 3.10 and 3.13, regenerates the reports and the cost model and fails if they differ from the committed files, then runs the challenge's own pre-screen (`scripts/validate_submission.py --strict`, downloaded at a pinned commit and checksum) on `submission.md`.
 
 ## AI usage
 

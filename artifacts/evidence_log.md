@@ -1,7 +1,15 @@
 # Evidence log
 
-Commands run on 2026-11-12 11:25 UTC, Apple M3, Darwin 23.6.0, Python 3.14.8. Each block is the verbatim output (paths shortened).
+Commands run on 2026-11-12 11:46 UTC, Apple M3, Darwin 23.6.0, Python 3.14.8. Each block is the verbatim output (paths shortened).
 `scripts/validate_submission.py` is the challenge's own pre-screen, from https://github.com/ericosiu/beat-claude at commit `4b719e45`, SHA-256 `e90d8df60a67a1944ad6a9b764f1bedab89d2818d95014d5e35f98c4526f0574`.
+
+## Official fixture, fetched at the pinned commit
+
+```
+$ python3 tools/fetch_fixture.py
+official fixture written to fixtures/event_sample.jsonl (commit 4b719e45, sha256 1aeb24b415009e89fcf8acb5a178410faf216dc17b16920d9849ecc8bbb24235)
+(exit code 0)
+```
 
 ## Fixture checksum
 
@@ -47,7 +55,7 @@ OK
 
 ```
 $ python3 analyze_fixture.py --bench 200000
-200000 synthetic events, 5.37 s, 37,250 events/s on one core (Python 3.14.8, Darwin arm64)
+200000 synthetic events, 5.43 s, 36,806 events/s on one core (Python 3.14.8, Darwin arm64)
 (exit code 0)
 ```
 
