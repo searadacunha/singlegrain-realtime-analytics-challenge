@@ -67,7 +67,7 @@ I optimize for durability, correctness and a migration two people can run, and g
 
 ## 2. Operating artifact
 
-[Observed] In the repo of section 7: `analyze_fixture.py` (the gate: standard library, generic rules, no hard-coded id), 48 tests, `cost_model.py` with pinned AWS prices, and `docs/`.
+[Observed] In the repo of section 7: `analyze_fixture.py` (the gate: standard library, generic rules, no hard-coded id), 51 tests, `cost_model.py` with pinned AWS prices, and `docs/`.
 
 ## 3. Evidence log
 
