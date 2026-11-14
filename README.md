@@ -1,5 +1,7 @@
 # Real-time analytics pipeline: Beat Claude, Engineer 004
 
+<p align="center"><img src="assets/readme-hero.svg" width="100%" alt="singlegrain-realtime-analytics-challenge project banner" /></p>
+
 An answer to Single Grain's [Engineer 004 challenge](https://github.com/ericosiu/beat-claude/blob/main/challenges/engineer-004/brief.md) (brief version 2026-07): the architecture of a real-time analytics pipeline for 50M events a day on AWS, and a runnable event-quality gate that works the official fixture.
 
 **Read [`submission.md`](submission.md) first.** It is the written answer and the full submission packet.
