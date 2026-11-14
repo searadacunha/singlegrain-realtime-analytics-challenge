@@ -226,8 +226,16 @@ def parse_ts(value):
         return None
     if zone not in ("Z", "z"):
         digits = zone[1:].replace(":", "")
-        offset = timedelta(hours=int(digits[:2]), minutes=int(digits[2:]))
-        instant = instant - offset if zone[0] == "+" else instant + offset
+        hours, minutes = int(digits[:2]), int(digits[2:])
+        # Reject malformed offsets rather than silently normalising +00:99.
+        if hours > 23 or minutes > 59:
+            return None
+        offset = timedelta(hours=hours, minutes=minutes)
+        try:
+            instant = instant - offset if zone[0] == "+" else instant + offset
+        except OverflowError:
+            # Conversion from a valid local date may fall outside datetime's range.
+            return None
     return instant
 
 
