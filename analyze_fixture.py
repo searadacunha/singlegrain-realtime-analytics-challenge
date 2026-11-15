@@ -39,7 +39,7 @@ WATERMARK_BOUND_S = 5.0       # out-of-orderness bound of the simulated event-ti
 BURST_MIN_EVENTS = 3          # page views by one visitor ...
 BURST_WINDOW_S = 1.0          # ... inside this window: automation suspected
 # shortcut: shape inferred from the sample, replace with a tenant-registry lookup in production
-TENANT_ID_PATTERN = re.compile(r"^t-\d+$")
+TENANT_ID_PATTERN = re.compile(r"t-\d+", re.ASCII)  # used with fullmatch: ASCII digits, no trailing newline
 
 CANONICAL_KEYS = ("event_id", "tenant_id", "anonymous_id", "user_id", "type", "ts", "received_at", "properties")
 KEY_ALIASES = {"timestamp": "ts"}
@@ -47,8 +47,9 @@ TYPE_ALIASES = {"pageview": "page_view"}
 PROPERTY_ALIASES = {"page_path": "path", "ref": "referrer"}
 KNOWN_TYPES = {"page_view", "click", "form_submit", "custom", "identify", "privacy_request"}
 
-EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-PHONE = re.compile(r"^\s*\+?[\d\s().-]{7,20}\s*$")
+# Bounded runs keep the scan linear: with "+" a 160 KB property took 26 s to search.
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}")
+PHONE = re.compile(r"\+?[\d\s().-]{7,20}", re.ASCII)  # used with fullmatch on the stripped value
 PII_KEY = re.compile(r"e[-_]?mail|phone|mobile|address|first[-_]?name|last[-_]?name|full[-_]?name|ssn|passport|birth", re.I)
 PHONE_KEY = re.compile(r"phone|mobile|(^|_)tel(_|$)", re.I)
 INSTRUCTION = re.compile(
@@ -192,14 +193,55 @@ CATALOG = {
 QUARANTINE = {"malformed_json", "missing_tenant", "malformed_tenant_id", "event_id_collision", "unknown_event_type"}
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9_.:/\[\]-]")
-_TS = re.compile(r"^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|z|[+-]\d{2}:?\d{2})$")
+_TS = re.compile(r"(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|z|[+-]\d{2}:?\d{2})", re.ASCII)
+
+
+MAX_DEPTH = 64  # deeper JSON is malformed: the recursive passes below would overflow the stack
+
+
+def _reject_constant(name):
+    """NaN and Infinity are not JSON (RFC 8259 section 6): the line is malformed."""
+    raise ValueError("non-standard JSON constant %s" % name)
+
+
+_DECODER = json.JSONDecoder(parse_constant=_reject_constant)  # built once: json.loads(..., hook) builds one per line
+
+
+def _too_deep(value, line):
+    """Nesting depth above MAX_DEPTH, measured without recursion. A line with fewer brackets cannot be that deep."""
+    if line.count("{") + line.count("[") <= MAX_DEPTH:
+        return False
+    stack = [(value, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > MAX_DEPTH:
+            return True
+        children = node.values() if isinstance(node, dict) else node if isinstance(node, list) else ()
+        stack.extend((child, depth + 1) for child in children)
+    return False
+
+
+def _pii_hash(text):
+    return "pii:" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def _is_phone(text):
+    return text.lstrip().startswith("+") and bool(PHONE.fullmatch(text.strip())) and sum(c.isdigit() for c in text) >= 7
 
 
 def safe(value, limit=64):
-    """Echo only identifier-shaped text into reports: event content is untrusted."""
+    """Echo only identifier-shaped text into reports: event content is untrusted.
+
+    An e-mail address or a phone number is never echoed, even as an id or a key: it becomes a short hash.
+    """
     if value is None:
         return None
-    text = _UNSAFE.sub("?", str(value))
+    text = str(value)
+    if "@" in text:
+        text = EMAIL.sub(lambda m: _pii_hash(m.group(0)), text)
+    if _is_phone(text):
+        text = _pii_hash(text)
+    text = _UNSAFE.sub("?", text)
     return text[:limit] + ("..." if len(text) > limit else "")
 
 
@@ -215,7 +257,7 @@ def parse_ts(value):
     """
     if not isinstance(value, str):
         return None
-    match = _TS.match(value.strip())
+    match = _TS.fullmatch(value.strip())
     if not match:
         return None
     year, month, day, hour, minute, second, fraction, zone = match.groups()
@@ -271,7 +313,7 @@ def pii_hits(properties):
     for path, key, value in scalars(properties):
         if isinstance(value, str) and EMAIL.search(value):
             detector = "email"
-        elif isinstance(value, str) and PHONE.match(value) and sum(c.isdigit() for c in value) >= 7 and (
+        elif isinstance(value, str) and PHONE.fullmatch(value.strip()) and sum(c.isdigit() for c in value) >= 7 and (
                 value.lstrip().startswith("+") or PHONE_KEY.search(key)):
             detector = "phone"
         elif PII_KEY.search(key) and value not in (None, "", False):
@@ -321,8 +363,8 @@ def normalise(obj, line_no, raw_len):
         event_time = ts or received
     return {
         "line": line_no, "raw_len": raw_len, "variants": variants,
-        "event_id": obj.get("event_id"), "tenant_id": obj.get("tenant_id"),
-        "anonymous_id": obj.get("anonymous_id"), "user_id": obj.get("user_id"),
+        # An id that is not a string (an object, a list, a number) is unusable as a key: kept as missing.
+        **{k: obj.get(k) if isinstance(obj.get(k), str) else None for k in ("event_id", "tenant_id", "anonymous_id", "user_id")},
         "type": obj.get("type"), "properties": properties,
         "ts": ts, "received_at": received, "lag": lag, "event_time": event_time,
         "ts_present": obj.get("ts") is not None, "received_present": obj.get("received_at") is not None,
@@ -341,7 +383,7 @@ def simulate_watermark(events, clamp):
         when = event["event_time"] if clamp else (event["ts"] or event["received_at"])
         if when is None:
             continue
-        if high is not None and when < high - timedelta(seconds=WATERMARK_BOUND_S):
+        if high is not None and (high - when).total_seconds() > WATERMARK_BOUND_S:  # no date arithmetic near year 1
             late.append(event)
         elif high is None or when > high:
             high = when
@@ -365,7 +407,7 @@ def analyze(lines):
         line_classes[event["line"]].append(cls)
 
     def ids(records):
-        return [safe(r["event_id"]) for r in records]
+        return [safe(r["event_id"]) or "line-%d" % r["line"] for r in records]
 
     # ---- pass 1: parse, normalise, per-record checks, dedup ----
     total_lines, sizes, seen = 0, [], {}
@@ -385,10 +427,12 @@ def analyze(lines):
         size = len(line.encode("utf-8"))
         sizes.append(size)
         try:
-            obj = json.loads(line)
+            obj = _DECODER.decode(line)
             if not isinstance(obj, dict):
                 raise ValueError("not an object")
-        except ValueError as exc:
+            if _too_deep(obj, line):
+                raise ValueError("nested deeper than %d levels" % MAX_DEPTH)
+        except (ValueError, RecursionError) as exc:
             found = re.search(r'"event_id"\s*:\s*"([^"]*)"', line)
             stub = {"line": line_no, "event_id": found.group(1) if found else None}
             line_ids[line_no] = safe(stub["event_id"])
@@ -413,7 +457,7 @@ def analyze(lines):
             flag(event, "missing_event_id", "event_id is absent, null or empty: the record cannot be deduplicated as sent.")
         if not is_id(event["tenant_id"]):
             flag(event, "missing_tenant", "tenant_id is null or absent: the record cannot be attributed to a customer.")
-        elif not TENANT_ID_PATTERN.match(event["tenant_id"]):
+        elif not TENANT_ID_PATTERN.fullmatch(event["tenant_id"]):
             flag(event, "malformed_tenant_id", "tenant_id does not have the shape of the other tenant ids.")
         if not is_id(event["anonymous_id"]) and not is_id(event["user_id"]):
             flag(event, "missing_identity", "Neither anonymous_id nor user_id is set.")
@@ -458,7 +502,8 @@ def analyze(lines):
                      first_line=first["line"])
 
     unique = [e for e in events if "duplicate_of" not in e]
-    # Per-subject indexes keep the second pass linear in the number of records.
+    # Per-subject indexes keep the second pass linear in the number of records, except the lists of ids
+    # written for one burst or one shared device, which grow with the square of that group's size.
     by_anon, by_user = defaultdict(list), defaultdict(list)
     for event in events:
         if is_id(event["anonymous_id"]):
@@ -847,7 +892,7 @@ def main(argv=None):
               "fixture": {"file": args.fixture.name, "sha256": digest, "bytes": len(raw)}}
     report.update(analyze(raw.split(b"\n")))
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    (args.out_dir / "anomaly_report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    (args.out_dir / "anomaly_report.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     (args.out_dir / "anomaly_report.md").write_text(render_markdown(report), encoding="utf-8")
     s = report["summary"]
     print("fixture  %s  sha256 %s" % (args.fixture.name, digest))

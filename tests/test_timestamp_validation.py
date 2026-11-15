@@ -1,7 +1,11 @@
 """Regression tests for untrusted client timestamp parsing."""
+import sys
 import unittest
+from pathlib import Path
 
-from analyze_fixture import parse_ts
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from analyze_fixture import parse_ts  # noqa: E402
 
 
 class TimestampOffsetValidation(unittest.TestCase):
