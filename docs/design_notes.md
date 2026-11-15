@@ -25,7 +25,7 @@ Overload or a ClickHouse outage therefore costs freshness, not data: records wai
 What this gives:
 
 - A failed insert leaves no key, so the retry re-inserts: no loss.
-- Segment counters move once per event id, within the 48 h life of the dedup keys. A batch retried for longer (the retry window above allows days) would count again: the keys must then outlive the maximum record age, or older records must go through replay mode. Not settled in this design.
+- Segment counters move once per event id **only while the 48 h dedup key exists**. The configured Kinesis retry/record-age window extends to 6 days, so a delayed redelivery can increment counters again. ClickHouse deduplication and nightly reconciliation do not protect the Valkey counter in that case. **Production blocker:** either retain event-id keys for longer than the full retry/rewind horizon (and resize Valkey in the cost model), or require a separately fenced, idempotent replay path for expired keys. Neither option is implemented or costed here.
 - ClickHouse can hold a doubled row only if two copies were in flight together or the gate died between write and commit. The nightly reconciliation compares rows with distinct event ids per tenant-hour, applies the purge list, and rebuilds the rollups of the hours it touched. Exactly-once effects in ClickHouse are reached after reconciliation, not instantly.
 - A Valkey failover can lose the last second of keys and counter updates. After a failover, segment state for the last 48 h is rebuilt from ClickHouse.
 - Replays, from the raw archive or from the failure destination, run the gate in replay mode: they delete their ClickHouse window first, skip the dedup read, and rebuild segment state for that window afterwards. Tombstones always apply.
@@ -43,7 +43,7 @@ What this gives:
 | Dashboard refresh every 2 s | 1.0 s | 2.0 s | [Assumed] |
 | **Total** | **2.5 s** | **5.0 s** | [Estimated] |
 
-The worst case touches the target, which is why the target is an SLO on the p95, measured by a canary tenant that sends an event every 10 s and polls the API until it appears, not a promise. Not counted: the time before the request reaches the collector (TLS, the browser), which no server controls.
+The worst case touches the target, which is why this is an **unmeasured** p95 SLO target, not a proven latency bound. The proposed canary sends an event every 10 s and polls the API until it appears. That only measures API visibility: dashboard refresh, polling interval, and the time before the request reaches the collector (TLS, the browser) are excluded. An end-to-end dashboard SLO needs a separate measurement.
 
 ## ClickHouse layout
 
@@ -55,7 +55,7 @@ The worst case touches the target, which is why the target is an SLO on the p95,
 ## Deletion
 
 - **Intake.** From the tenant console or API, authenticated. A `privacy_request` arriving in the SDK stream only triggers suppression, rate-limited per tenant and per source; beyond the limit nothing happens until the tenant confirms, and the tenant is alerted. This blocks using the public endpoint to hide visitors at will.
-- **Scope.** The subject's user id and the visitor ids linked to that user, inside one tenant. Never another user's records: anonymous events from a device shared with another user are listed for a human. `analyze_fixture.py` implements this rule, and `tests/` covers the shared-device case.
+- **Scope.** Deletion may cover the verified subject's user id and visitor ids supported by authenticated, independent identity evidence inside the tenant. A public `privacy_request` asserting `(user_id, anonymous_id)` **cannot itself establish that link** or authorize a wider deletion. Shared-device anonymous records must remain undecided for human review, rather than being deleted by visitor id alone. `analyze_fixture.py` reports a **candidate** scope derived from all observed links, including self-asserted ones; it is a forensic fixture analyzer, **not** an authenticated deletion executor or an approved deletion manifest. Do not feed its candidate `subject_anonymous_ids`/`affected_events_in_file` directly to a deletion job. The shared-device case is tested; independent verification of links is not implemented by the fixture analyzer.
 - **Cutoff.** The server receipt time of the request. On the fixture, evt-0006 has a later client time than the request but was received earlier [Observed].
 - **Targets.** ClickHouse raw rows, then the rollup buckets that held them, rebuilt from raw; Valkey keys; the Parquet exports of affected hours, rewritten, plus a deletion feed that customers apply to their warehouses. The raw archive, quarantine and failure destination expire after 14 days; ClickHouse backups after 7 days.
 - **During the migration.** The forwarder checks tombstones before replaying into the old ingest, and the request is also run through the old pipeline's own deletion process [Assumed: one exists, since the old system already faces GDPR and CCPA].
