@@ -437,8 +437,8 @@ def analyze(lines):
             stub = {"line": line_no, "event_id": found.group(1) if found else None}
             line_ids[line_no] = safe(stub["event_id"])
             try:
-                closes = isinstance(json.loads(line + "}"), dict)
-            except ValueError:
+                closes = isinstance(_DECODER.decode(line + "}"), dict)
+            except (ValueError, RecursionError):  # the re-parse can hit the same depth as the first one
                 closes = False
             where = " at column %d" % exc.colno if hasattr(exc, "colno") else ""
             reason = "Line %d is not valid JSON (%s%s)." % (line_no, type(exc).__name__, where)
