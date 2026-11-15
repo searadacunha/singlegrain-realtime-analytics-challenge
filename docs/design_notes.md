@@ -25,7 +25,7 @@ Overload or a ClickHouse outage therefore costs freshness, not data: records wai
 What this gives:
 
 - A failed insert leaves no key, so the retry re-inserts: no loss.
-- Segment counters move once per event id.
+- Segment counters move once per event id, within the 48 h life of the dedup keys. A batch retried for longer (the retry window above allows days) would count again: the keys must then outlive the maximum record age, or older records must go through replay mode. Not settled in this design.
 - ClickHouse can hold a doubled row only if two copies were in flight together or the gate died between write and commit. The nightly reconciliation compares rows with distinct event ids per tenant-hour, applies the purge list, and rebuilds the rollups of the hours it touched. Exactly-once effects in ClickHouse are reached after reconciliation, not instantly.
 - A Valkey failover can lose the last second of keys and counter updates. After a failover, segment state for the last 48 h is rebuilt from ClickHouse.
 - Replays, from the raw archive or from the failure destination, run the gate in replay mode: they delete their ClickHouse window first, skip the dedup read, and rebuild segment state for that window afterwards. Tombstones always apply.

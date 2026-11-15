@@ -21,7 +21,7 @@
 
 ### Event model and identity
 
-[Assumed] The SDK's write key is checked against the payload `tenant_id`. `event_time` is the client time unless over 1 s ahead of `received_at` or older than 7 days (then `received_at`, client value kept); partitions, TTL and freshness use `received_at`. `identify` adds `(tenant_id, anonymous_id, user_id, first_seen)` to a links table and moves the visitor's segments to the user; earlier anonymous events are attributed at query time, never rewritten, never merged across tenants or users.
+[Assumed] The SDK's write key is checked against the payload `tenant_id`. `event_time` is the client time unless it is ahead of `received_at` or older than 7 days (then `received_at`, client value kept); partitions, TTL and freshness use `received_at`. `identify` adds `(tenant_id, anonymous_id, user_id, first_seen)` to a links table and moves the visitor's segments to the user; earlier anonymous events are attributed at query time, never rewritten, never merged across tenants or users.
 
 ### What the pipeline does with this fixture
 
@@ -67,7 +67,7 @@ I optimize for durability, correctness and a migration two people can run, and g
 
 ## 2. Operating artifact
 
-[Observed] In the repo of section 7: `analyze_fixture.py` (the gate: standard library, generic rules, no hard-coded id), 51 tests, `cost_model.py` with pinned AWS prices, and `docs/`.
+[Observed] In the repo of section 7: `analyze_fixture.py` (the gate: standard library, generic rules, no hard-coded id), 60 tests, `cost_model.py` with pinned AWS prices, and `docs/`.
 
 ## 3. Evidence log
 

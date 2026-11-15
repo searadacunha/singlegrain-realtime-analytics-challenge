@@ -1,6 +1,7 @@
 # Evidence log
 
 Commands run on 2026-11-12 11:46 UTC, Apple M3, Darwin 23.6.0, Python 3.14.8. Each block is the verbatim output (paths shortened).
+The test suite and speed blocks were re-run on 2026-11-15, on the same machine, after the fixes of that day's audit.
 `scripts/validate_submission.py` is the challenge's own pre-screen, from https://github.com/ericosiu/beat-claude at commit `4b719e45`, SHA-256 `e90d8df60a67a1944ad6a9b764f1bedab89d2818d95014d5e35f98c4526f0574`.
 
 ## Official fixture, fetched at the pinned commit
@@ -46,7 +47,7 @@ reports  artifacts
 
 ```
 $ python3 -m unittest discover -s tests
-Ran 48 tests in 0.009s
+Ran 60 tests in 0.058s
 OK
 (exit code 0)
 ```
@@ -55,7 +56,7 @@ OK
 
 ```
 $ python3 analyze_fixture.py --bench 200000
-200000 synthetic events, 5.43 s, 36,806 events/s on one core (Python 3.14.8, Darwin arm64)
+200000 synthetic events, 5.55 s, 36,019 events/s on one core (Python 3.14.8, Darwin arm64)
 (exit code 0)
 ```
 
